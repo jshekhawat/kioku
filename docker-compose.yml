@@ -10,7 +10,7 @@ x-kioku-env: &kioku-env
   KIOKU_EMBED_PROVIDER: ${KIOKU_EMBED_PROVIDER:-ollama}
   KIOKU_EMBED_MODEL: ${KIOKU_EMBED_MODEL:-nomic-embed-text}
   KIOKU_EMBED_DIM: ${KIOKU_EMBED_DIM:-768}
-  KIOKU_OLLAMA_BASE_URL: ${KIOKU_OLLAMA_BASE_URL:-http://ollama:11434}
+  KIOKU_OLLAMA_BASE_URL: ${KIOKU_OLLAMA_BASE_URL:-http://host.docker.internal:11434}
   KIOKU_QDRANT_URL: ${KIOKU_QDRANT_URL:-http://qdrant:6333}
   KIOKU_QDRANT_API_KEY: ${KIOKU_QDRANT_API_KEY:-}
   KIOKU_FALKORDB_HOST: ${KIOKU_FALKORDB_HOST:-falkordb}
@@ -49,6 +49,7 @@ services:
 
   ollama:
     image: ollama/ollama:latest
+    profiles: ["bundled-ollama"]
     restart: unless-stopped
     ports:
       - "11434:11434"
@@ -70,6 +71,7 @@ services:
 
   ollama-init:
     image: ollama/ollama:latest
+    profiles: ["bundled-ollama"]
     depends_on:
       ollama:
         condition: service_healthy

@@ -1,0 +1,29 @@
+# Override to let kioku reach an Ollama container that lives on a separate
+# Docker network. The API and MCP containers join the external network named by
+# KIOKU_OLLAMA_NETWORK (default: "ollama") while staying on the default network
+# so they can still reach Qdrant and FalkorDB.
+#
+# Usage:
+#   KIOKU_OLLAMA_BASE_URL=http://<ollama-container-name>:11434 \
+#   KIOKU_OLLAMA_NETWORK=my-net \
+#   docker compose -f docker-compose.yml -f docker-compose.external-ollama.yml up -d
+#
+# Or put COMPOSE_FILE="docker-compose.yml:docker-compose.external-ollama.yml"
+# in your .env to make it the default. The external network must already exist:
+#   docker network create my-net   # or reuse the network of your Ollama container
+
+services:
+  api:
+    networks:
+      - default
+      - ollama-net
+
+  mcp:
+    networks:
+      - default
+      - ollama-net
+
+networks:
+  ollama-net:
+    external: true
+    name: ${KIOKU_OLLAMA_NETWORK:-ollama}

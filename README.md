@@ -33,34 +33,60 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-This starts Qdrant, FalkorDB, Ollama, pulls `nomic-embed-text`, then the API and
-MCP server. Check it:
+This starts Qdrant, FalkorDB, the API and the MCP server. It expects an **external
+Ollama** for embeddings (see below). Check it:
 
 ```bash
 curl localhost:8000/v1/health
 open http://localhost:8000/docs
 ```
 
+### Ollama
+
+The `ollama` and `ollama-init` services are opt-in under the `bundled-ollama`
+profile, so kioku defaults to an Ollama you already run. Pick one:
+
+**1. Ollama on the host (default).** Host port `11434` is used via
+`host.docker.internal`, which is mapped on Linux through `extra_hosts`:
+
+```env
+KIOKU_OLLAMA_BASE_URL=http://host.docker.internal:11434
+```
+
+**2. Ollama in another container on a different Docker network.** Use the
+override file to attach the API/MCP containers to that network and address Ollama
+by container name:
+
+```bash
+COMPOSE_FILE=docker-compose.yml:docker-compose.external-ollama.yml \
+KIOKU_OLLAMA_NETWORK=my-net \
+KIOKU_OLLAMA_BASE_URL=http://my-ollama:11434 \
+docker compose up -d
+```
+
+The external network must already exist. You can persist the flag by adding
+`COMPOSE_FILE=docker-compose.yml:docker-compose.external-ollama.yml`,
+`KIOKU_OLLAMA_NETWORK` and `KIOKU_OLLAMA_BASE_URL` to `.env`.
+
+**3. Bundle Ollama with kioku.** Start the profile and point at the service name:
+
+```bash
+KIOKU_OLLAMA_BASE_URL=http://ollama:11434 \
+docker compose --profile bundled-ollama up -d
+```
+
+`ollama-init` will pull `KIOKU_EMBED_MODEL` automatically; add
+`--profile bundled-ollama` again for later commands (e.g. `docker compose
+--profile bundled-ollama exec ollama ollama pull llama3.2`).
+
 ### Using a local chat model instead of OpenRouter
 
-Ollama is already in the stack. Point the LLM at it:
+Point the LLM at any of the Ollama setups above:
 
 ```env
 KIOKU_LLM_PROVIDER=ollama
 KIOKU_LLM_MODEL=llama3.2
 ```
-
-and pull the model once:
-
-```bash
-docker compose exec ollama ollama pull llama3.2
-```
-
-### Using Ollama already running on your host
-
-Set `KIOKU_OLLAMA_BASE_URL=http://host.docker.internal:11434` and remove/ignore the
-bundled `ollama` service (`docker compose up -d --scale ollama=0 ...` or start only
-the services you need). `host.docker.internal` is mapped on Linux via `extra_hosts`.
 
 ## API
 
@@ -132,6 +158,8 @@ All settings use the `KIOKU_` prefix (see `.env.example`).
 | `KIOKU_LLM_PROVIDER` | `openrouter` | `openrouter`, `ollama`, `openai` |
 | `KIOKU_LLM_MODEL` | `openai/gpt-4o-mini` | Any OpenRouter/Ollama model id |
 | `KIOKU_OPENROUTER_API_KEY` | – | Required for OpenRouter |
+| `KIOKU_OLLAMA_BASE_URL` | `http://host.docker.internal:11434` | External/host Ollama by default |
+| `KIOKU_OLLAMA_NETWORK` | `ollama` | External Docker network for the override file |
 | `KIOKU_EMBED_PROVIDER` | `ollama` | `ollama`, `openai` |
 | `KIOKU_EMBED_MODEL` | `nomic-embed-text` | Must match `KIOKU_EMBED_DIM` |
 | `KIOKU_EMBED_DIM` | `768` | Vector size; recreate collection if changed |

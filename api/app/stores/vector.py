@@ -39,6 +39,19 @@ class VectorStore:
             )
             logger.info("created qdrant collection %s (dim=%d)", self.collection, self.dim)
 
+        info = await self.client.get_collection(self.collection)
+        vectors = info.config.params.vectors
+        existing_dim = getattr(vectors, "size", None)
+        if existing_dim is not None and existing_dim != self.dim:
+            logger.error(
+                "collection %s has vector size %d but KIOKU_EMBED_DIM=%d; "
+                "embeddings will fail. Set KIOKU_EMBED_DIM to match the model, "
+                "then recreate the collection.",
+                self.collection,
+                existing_dim,
+                self.dim,
+            )
+
         for field in INDEXED_FIELDS:
             try:
                 await self.client.create_payload_index(
