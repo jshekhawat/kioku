@@ -34,6 +34,7 @@ vector = VectorStore(
     collection=settings.qdrant_collection,
     dim=settings.embed_dim,
     api_key=settings.qdrant_api_key,
+    recreate_on_dim_mismatch=settings.qdrant_recreate_on_dim_mismatch,
 )
 
 graph: GraphStore | None = (

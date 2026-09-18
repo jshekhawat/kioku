@@ -20,16 +20,37 @@ class VectorStore:
         collection: str,
         dim: int,
         api_key: str | None = None,
+        recreate_on_dim_mismatch: bool = False,
     ) -> None:
         self.collection = collection
         self.dim = dim
+        self.recreate_on_dim_mismatch = recreate_on_dim_mismatch
         self.client = AsyncQdrantClient(
             url=url, api_key=api_key or None, check_compatibility=False
         )
 
     async def ensure_collection(self) -> None:
-        exists = await self.client.collection_exists(self.collection)
-        if not exists:
+        if await self.client.collection_exists(self.collection):
+            info = await self.client.get_collection(self.collection)
+            existing_dim = getattr(info.config.params.vectors, "size", None)
+            if existing_dim is not None and existing_dim != self.dim:
+                if not self.recreate_on_dim_mismatch:
+                    raise RuntimeError(
+                        f"collection {self.collection!r} has vector size {existing_dim} "
+                        f"but KIOKU_EMBED_DIM={self.dim}. Set KIOKU_EMBED_DIM to match "
+                        f"your embedding model, or set "
+                        f"KIOKU_QDRANT_RECREATE_ON_DIM_MISMATCH=true to drop and rebuild "
+                        f"the collection."
+                    )
+                logger.warning(
+                    "recreating collection %s: dim %d -> %d (existing memories dropped)",
+                    self.collection,
+                    existing_dim,
+                    self.dim,
+                )
+                await self.client.delete_collection(self.collection)
+
+        if not await self.client.collection_exists(self.collection):
             await self.client.create_collection(
                 collection_name=self.collection,
                 vectors_config=models.VectorParams(
@@ -38,19 +59,6 @@ class VectorStore:
                 ),
             )
             logger.info("created qdrant collection %s (dim=%d)", self.collection, self.dim)
-
-        info = await self.client.get_collection(self.collection)
-        vectors = info.config.params.vectors
-        existing_dim = getattr(vectors, "size", None)
-        if existing_dim is not None and existing_dim != self.dim:
-            logger.error(
-                "collection %s has vector size %d but KIOKU_EMBED_DIM=%d; "
-                "embeddings will fail. Set KIOKU_EMBED_DIM to match the model, "
-                "then recreate the collection.",
-                self.collection,
-                existing_dim,
-                self.dim,
-            )
 
         for field in INDEXED_FIELDS:
             try:

@@ -58,6 +58,7 @@ class Settings(BaseSettings):
     qdrant_url: str = "http://qdrant:6333"
     qdrant_api_key: str | None = None
     qdrant_collection: str = "kioku_memories"
+    qdrant_recreate_on_dim_mismatch: bool = False
 
     # --- Knowledge graph ----------------------------------------------------
     graph_enabled: bool = True

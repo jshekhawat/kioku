@@ -137,6 +137,26 @@ Claude Code:
 claude mcp add --transport http kioku http://localhost:8090/mcp
 ```
 
+OpenCode — add to `~/.config/opencode/opencode.json` (or `opencode.jsonc`;
+global, all projects) or `opencode.json` in a project root (scoped):
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "kioku": {
+      "type": "remote",
+      "url": "http://localhost:8090/mcp",
+      "enabled": true
+    }
+  }
+}
+```
+
+Restart opencode afterwards (config is not hot-reloaded). Tools are exposed with
+the server-name prefix, e.g. `kioku_add_memory`, `kioku_search_memory`. The
+`mcp` container must be running for opencode to connect.
+
 Generic client config:
 
 ```json
@@ -166,6 +186,7 @@ All settings use the `KIOKU_` prefix (see `.env.example`).
 | `KIOKU_GRAPH_ENABLED` | `true` | Set `false` to disable knowledge graph |
 | `KIOKU_SIMILARITY_THRESHOLD` | `0.1` | Minimum vector score for candidates |
 | `KIOKU_QDRANT_URL` | `http://qdrant:6333` | |
+| `KIOKU_QDRANT_RECREATE_ON_DIM_MISMATCH` | `false` | Drop/rebuild collection if `KIOKU_EMBED_DIM` changed |
 | `KIOKU_FALKORDB_HOST` | `falkordb` | |
 
 Changing `KIOKU_EMBED_MODEL`/`KIOKU_EMBED_DIM` after data exists requires dropping
