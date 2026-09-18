@@ -1,0 +1,128 @@
+name: kioku
+
+x-kioku-env: &kioku-env
+  KIOKU_LLM_PROVIDER: ${KIOKU_LLM_PROVIDER:-openrouter}
+  KIOKU_LLM_MODEL: ${KIOKU_LLM_MODEL:-openai/gpt-4o-mini}
+  KIOKU_LLM_BASE_URL: ${KIOKU_LLM_BASE_URL:-}
+  KIOKU_LLM_API_KEY: ${KIOKU_LLM_API_KEY:-}
+  KIOKU_OPENROUTER_API_KEY: ${KIOKU_OPENROUTER_API_KEY:-}
+  KIOKU_OPENROUTER_REFERER: ${KIOKU_OPENROUTER_REFERER:-}
+  KIOKU_EMBED_PROVIDER: ${KIOKU_EMBED_PROVIDER:-ollama}
+  KIOKU_EMBED_MODEL: ${KIOKU_EMBED_MODEL:-nomic-embed-text}
+  KIOKU_EMBED_DIM: ${KIOKU_EMBED_DIM:-768}
+  KIOKU_OLLAMA_BASE_URL: ${KIOKU_OLLAMA_BASE_URL:-http://ollama:11434}
+  KIOKU_QDRANT_URL: ${KIOKU_QDRANT_URL:-http://qdrant:6333}
+  KIOKU_QDRANT_API_KEY: ${KIOKU_QDRANT_API_KEY:-}
+  KIOKU_FALKORDB_HOST: ${KIOKU_FALKORDB_HOST:-falkordb}
+  KIOKU_FALKORDB_PORT: ${KIOKU_FALKORDB_PORT:-6379}
+  KIOKU_GRAPH_ENABLED: ${KIOKU_GRAPH_ENABLED:-true}
+  KIOKU_SIMILARITY_THRESHOLD: ${KIOKU_SIMILARITY_THRESHOLD:-0.1}
+  KIOKU_LOG_LEVEL: ${KIOKU_LOG_LEVEL:-INFO}
+
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.12.4
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/127.0.0.1/6333' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  falkordb:
+    image: falkordb/falkordb:latest
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - falkordb_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+    # Uncomment to use an NVIDIA GPU:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  ollama-init:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["/bin/sh", "-c", "ollama pull ${KIOKU_EMBED_MODEL:-nomic-embed-text}"]
+    restart: "no"
+
+  api:
+    build: ./api
+    restart: unless-stopped
+    environment: *kioku-env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8000:8000"
+    depends_on:
+      qdrant:
+        condition: service_healthy
+      falkordb:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/v1/health')",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  mcp:
+    build: ./api
+    restart: unless-stopped
+    command: ["python", "-m", "app.mcp_server"]
+    environment:
+      <<: *kioku-env
+      KIOKU_MCP_HOST: 0.0.0.0
+      KIOKU_MCP_PORT: "8090"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8090:8090"
+    depends_on:
+      qdrant:
+        condition: service_healthy
+      falkordb:
+        condition: service_healthy
+
+volumes:
+  qdrant_data:
+  falkordb_data:
+  ollama_data:
