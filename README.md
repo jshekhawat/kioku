@@ -157,6 +157,27 @@ Restart opencode afterwards (config is not hot-reloaded). Tools are exposed with
 the server-name prefix, e.g. `kioku_add_memory`, `kioku_search_memory`. The
 `mcp` container must be running for opencode to connect.
 
+### Automatic recall
+
+The repo ships an OpenCode plugin in [`integrations/opencode/`](integrations/opencode/).
+It searches kioku before each turn and injects the top matches into the system
+prompt, so the model doesn't have to remember to call the search tool. Install it
+globally (or copy into `.opencode/plugins/` for a single project):
+
+```bash
+mkdir -p ~/.config/opencode/plugins
+cp integrations/opencode/kioku.ts ~/.config/opencode/plugins/kioku.ts
+cat integrations/opencode/AGENTS.example.md >> ~/.config/opencode/AGENTS.md
+```
+
+The second command adds a capture policy that tells the agent when to save
+memories. Recall is vector-only (`use_graph: false`) to avoid an extra LLM call
+per turn, and failures are silent so chat is never blocked. Configurable via
+`KIOKU_BASE_URL` (default `http://localhost:8000`), `KIOKU_USER_ID`,
+`KIOKU_RECALL_LIMIT` (default `5`), `KIOKU_RECALL_THRESHOLD` and
+`KIOKU_RECALL_TTL_MS`. See [`integrations/opencode/README.md`](integrations/opencode/README.md)
+for details.
+
 Generic client config:
 
 ```json
