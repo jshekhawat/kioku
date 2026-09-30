@@ -159,10 +159,11 @@ the server-name prefix, e.g. `kioku_add_memory`, `kioku_search_memory`. The
 
 ### Automatic recall
 
-The repo ships an OpenCode plugin in [`integrations/opencode/`](integrations/opencode/).
-It searches kioku before each turn and injects the top matches into the system
-prompt, so the model doesn't have to remember to call the search tool. Install it
-globally (or copy into `.opencode/plugins/` for a single project):
+The repo ships an OpenCode V2 plugin in
+[`integrations/opencode/`](integrations/opencode/). It searches kioku before each
+turn and injects the top matches into the system prompt, so the model doesn't
+have to remember to call the search tool. Install it globally (or copy into
+`.opencode/plugins/` for a single project):
 
 ```bash
 mkdir -p ~/.config/opencode/plugins

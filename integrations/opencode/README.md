@@ -12,8 +12,9 @@ Two optional pieces on top of the MCP server config:
 
 ## Install
 
-Make sure the MCP server is configured first (see the main README) and that the
-`api` (`:8000`) and `mcp` (`:8090`) containers are running.
+Requires OpenCode V2 (the plugin uses the V2 plugin API). Make sure the MCP
+server is configured first (see the main README) and that the `api` (`:8000`)
+and `mcp` (`:8090`) containers are running.
 
 Global (all projects):
 
@@ -31,7 +32,8 @@ cp kioku.ts .opencode/plugins/kioku.ts
 cat AGENTS.example.md >> AGENTS.md
 ```
 
-Restart OpenCode afterwards — config and plugins are loaded once at startup.
+OpenCode V2 hot-reloads local plugins, so a plugin change usually takes effect
+without a restart; restart OpenCode if it does not pick it up.
 
 ## Configuration
 
@@ -49,8 +51,9 @@ Set these environment variables in the environment OpenCode runs in (not in
 ## Notes
 
 - No build step: OpenCode loads the TypeScript plugin directly.
-- The plugin resolves `@opencode-ai/plugin` from your OpenCode config directory's
-  `node_modules`; the import is type-only and is stripped at runtime.
+- The plugin default-exports a V2 definition (`id` + `setup`) and has no runtime
+  dependency on `@opencode/plugin`; the API shapes it uses are typed locally. See
+  <https://opencode.ai/v2/docs/build/plugins>.
 - The capture policy is a suggestion the model follows. Capture is intentionally
   left out of the plugin because `add_memory` with `infer: true` triggers its own
   LLM extraction call, which would add latency and cost on every turn.

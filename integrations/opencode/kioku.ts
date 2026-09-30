@@ -1,5 +1,3 @@
-import type { Plugin } from "@opencode-ai/plugin"
-
 const BASE_URL = process.env.KIOKU_BASE_URL ?? "http://localhost:8000"
 const USER_ID = process.env.KIOKU_USER_ID ?? "default"
 const LIMIT = Number(process.env.KIOKU_RECALL_LIMIT ?? "5")
@@ -12,18 +10,34 @@ type Pending = { text: string; ts: number }
 const pending = new Map<string, Pending>()
 const resultCache = new Map<string, string | null>()
 
-function extractText(parts: unknown[]): string {
-  return parts
-    .filter(
-      (p): p is { type: string; text: string } =>
-        typeof p === "object" &&
-        p !== null &&
-        (p as { type?: string }).type === "text" &&
-        typeof (p as { text?: unknown }).text === "string",
-    )
-    .map((p) => p.text)
-    .join("\n")
-    .trim()
+// Minimal local shapes for the V2 plugin API surface this plugin uses. Avoids a
+// runtime dependency on `@opencode/plugin`, which OpenCode does not bundle for
+// local server plugins. See https://opencode.ai/v2/docs/build/plugins.
+type SystemPart = { type: "text"; text: string }
+
+interface PromptHookEvent {
+  readonly sessionID: string
+  prompt: { text: string }
+}
+
+interface ContextHookEvent {
+  readonly sessionID: string
+  system: SystemPart[]
+}
+
+interface SessionHookContext {
+  hook(
+    name: "prompt",
+    callback: (event: PromptHookEvent) => void | Promise<void>,
+  ): Promise<unknown>
+  hook(
+    name: "context",
+    callback: (event: ContextHookEvent) => void | Promise<void>,
+  ): Promise<unknown>
+}
+
+interface PluginContext {
+  session: SessionHookContext
 }
 
 async function recall(query: string): Promise<string | null> {
@@ -71,24 +85,33 @@ async function recall(query: string): Promise<string | null> {
   }
 }
 
-export const KiokuPlugin: Plugin = async () => {
-  return {
-    "chat.message": async (input, output) => {
-      const text = extractText(output.parts ?? [])
+export default {
+  id: "kioku",
+  async setup(ctx: PluginContext) {
+    // `chat.message` in V1. Capture the submitted prompt so the request hook
+    // below can recall memories for it.
+    await ctx.session.hook("prompt", (event) => {
+      const text = event.prompt.text.trim()
       if (!text || text.startsWith("/")) return
-      pending.set(input.sessionID, { text, ts: Date.now() })
-    },
+      pending.set(event.sessionID, { text, ts: Date.now() })
+    })
 
-    "experimental.chat.system.transform": async (input, output) => {
-      if (!input.sessionID) return
-      const entry = pending.get(input.sessionID)
+    // `experimental.chat.system.transform` in V1. Runs immediately before each
+    // model request; append recalled memories to the system instructions.
+    await ctx.session.hook("context", async (event) => {
+      const entry = pending.get(event.sessionID)
       if (!entry) return
       if (Date.now() - entry.ts > TTL_MS) {
-        pending.delete(input.sessionID)
+        pending.delete(event.sessionID)
         return
       }
       const block = await recall(entry.text)
-      if (block) output.system.push(block)
-    },
-  }
+      if (block) event.system.push({ type: "text", text: block })
+    })
+
+    return () => {
+      pending.clear()
+      resultCache.clear()
+    }
+  },
 }
